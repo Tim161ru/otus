@@ -1,2 +1,0 @@
-# otus
-otus home work
