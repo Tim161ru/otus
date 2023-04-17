@@ -1,0 +1,152 @@
+1) создайте виртуальную машину c Ubuntu 20.04/22.04 LTS в GCE/ЯО/Virtual Box/докере
+      -- смотреть предидущие задания;
+
+2) поставьте на нее PostgreSQL 15 через sudo apt
+      -- sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y -q && sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add - && sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt -y install postgresql-15
+
+3) проверьте что кластер запущен через sudo -u postgres pg_lsclusters
+      -- root@dz3:~# sudo -u postgres pg_lsclusters
+      -- Ver Cluster Port Status Owner    Data directory              Log file
+      -- 15  main    5432 online postgres /var/lib/postgresql/15/main /var/log/postgresql/postgresql-15-main.log
+      
+4) зайдите из под пользователя postgres в psql и сделайте произвольную таблицу с произвольным содержимым
+      -- postgres=#  create table test(c1 text);
+      -- CREATE TABLE
+      -- postgres=# insert into test values('1');
+      -- INSERT 0 1
+      
+5) остановите postgres например через sudo -u postgres pg_ctlcluster 15 main stop
+      -- systemctl stop postgresql@15-main
+
+6) создайте новый диск к ВМ размером 10GB,
+      -- root@dz3:~# lsblk
+      -- NAME   MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
+      -- vda    254:0    0  13G  0 disk
+      -- ├─vda1 254:1    0   1M  0 part
+      -- └─vda2 254:2    0  13G  0 part /
+      -- vdb    254:16   0  10G  0 disk <<<<------- мой новый диск
+      
+7) проинициализируйте диск согласно инструкции и подмонтировать файловую систему, только не забывайте менять имя диска на актуальное, в вашем случае это скорее всего будет /dev/sdb
+      -- root@dz3:~# mkfs.ext4 /dev/vdb
+      -- root@dz3:~# mkdir -p /mnt/data
+      -- root@dz3:~# mount /dev/vdb /mnt/data
+      -- root@dz3:~# df -h |grep new
+      -- /dev/vdb         10G   24K   14G   1% /mnt/data
+      -- root@dz3:~# echo "/dev/vdb /mnt/data ext4 default 0 0" >> /etc/fstab
+      -- root@dz3:~# reboot
+      
+8) перезагрузите инстанс и убедитесь, что диск остается примонтированным (если не так смотрим в сторону fstab)
+      -- root@dz3:~# df -h |grep new
+      -- /dev/vdb         10G   24K   14G   1% /mnt/data
+      
+9) сделайте пользователя postgres владельцем /mnt/data - chown -R postgres:postgres /mnt/data/
+      -- root@dz3:~# chown -R postgres:postgres /mnt
+
+10) перенесите содержимое /var/lib/postgres/14 в /mnt/data - mv /var/lib/postgresql/15 /mnt/data
+      -- root@dz:~# mv /var/lib/postgresql/15 /mnt/data
+      
+11) попытайтесь запустить кластер - sudo -u postgres pg_ctlcluster 15 main start
+      -- root@dz:/mnt/data# systemctl start postgresql@15-main
+      -- Job for postgresql@15-main.service failed because the service did not take the steps required by its unit configuration.
+      -- See "systemctl status postgresql@15-main.service" and "journalctl -xe" for details.
+12) напишите получилось или нет и почему
+      -- нет, файлы не найдены.
+13) задание: найти конфигурационный параметр в файлах раположенных в /etc/postgresql/15/main который надо поменять и поменяйте его
+      -- postgres@dz:/etc/postgresql/15/main$ view /etc/postgresql/15/main/postgresql.conf
+      -- поменял параметр: data_directory = '/mnt/data/15/main'  <<--- выставил новое расположение.
+14) попытайтесь запустить кластер - sudo -u postgres pg_ctlcluster 15 main start
+      -- root@dz:~# systemctl start postgresql@15-main
+      -- напишите получилось или нет и почему (sudo -u postgres pg_ctlcluster 15 main start) не получилось, посоветовали возпользоваться systemctl
+      
+16) зайдите через через psql и проверьте содержимое ранее созданной таблицы
+      -- postgres=# select * from test;
+      --  c1
+      -- ----
+      --  1
+      -- (1 row)
+
+17) задание со звездочкой *: не удаляя существующий инстанс ВМ сделайте новый, 
+    поставьте на его PostgreSQL, 
+    удалите файлы с данными из /var/lib/postgres, 
+    перемонтируйте внешний диск который сделали ранее от первой виртуальной машины ко второй 
+    и запустите PostgreSQL на второй машине так чтобы он работал с данными на внешнем диске, 
+    расскажите как вы это сделали и что в итоге получилось.
+  
+        -- stop vm1 (dz3), dismount disk from mv
+        -- create dz3start with dismounted disk
+        -- redo steps from beginnign:
+root@dz3star:~# 
+{
+sudo apt update
+sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y -q
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+sudo apt install gnupg -y
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt -y install postgresql-15
+}
+postgres@dz3star:~/15/main$ pwd
+/var/lib/postgresql/15/main
+postgres@dz3star:~/15/main$ rm -rf ./*
+
+root@dz3star:~# lsblk
+NAME   MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
+vda    254:0    0  13G  0 disk
+├─vda1 254:1    0   1M  0 part
+└─vda2 254:2    0  13G  0 part /
+vdb    254:16   0  10G  0 disk  <<<<---- наш диск с данными
+--маунтим диск:
+root@dz3star:~# mount /dev/vdb /var/lib/postgresql/15/main
+--проверяем:
+root@dz3star:/var/lib/postgresql/15/main/15/main# ls -ltr
+total 80
+-rw------- 1 postgres postgres    3 Apr 17 12:45 PG_VERSION
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_twophase
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_tblspc
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_stat_tmp
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_snapshots
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_serial
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_replslot
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_notify
+drwx------ 4 postgres postgres 4096 Apr 17 12:45 pg_multixact
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_dynshmem
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_commit_ts
+-rw------- 1 postgres postgres   88 Apr 17 12:45 postgresql.auto.conf
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_xact
+drwx------ 3 postgres postgres 4096 Apr 17 12:45 pg_wal
+drwx------ 2 postgres postgres 4096 Apr 17 12:45 pg_subtrans
+drwx------ 5 postgres postgres 4096 Apr 17 12:45 base
+-rw------- 1 postgres postgres  120 Apr 17 13:10 postmaster.opts
+drwx------ 2 postgres postgres 4096 Apr 17 13:15 global
+drwx------ 4 postgres postgres 4096 Apr 17 13:18 pg_logical
+drwx------ 2 postgres postgres 4096 Apr 17 13:18 pg_stat
+-- данные есть, но пути корявенькие, делаем магию:
+root@dz3star:/var/lib/postgresql/15/main/15/main# mv ./* /var/lib/postgresql/15/main/
+-- поднимаем кластер 
+root@dz3star:/etc/postgresql/15/main# systemctl start  postgresql@15-main
+-- не встал.... ???
+-- идем смотреть лог:
+    tkhandadashev@dz3star:~$ tail -f /var/log/postgresql/postgresql-15-main.log
+2023-04-17 13:26:44.333 UTC [8071] LOG:  database system is shut down
+2023-04-17 13:31:24.009 UTC [8139] FATAL:  data directory "/var/lib/postgresql/15/main" has invalid permissions
+2023-04-17 13:31:24.009 UTC [8139] DETAIL:  Permissions should be u=rwx (0700) or u=rwx,g=rx (0750).
+
+root@dz3star:/etc/postgresql/15/main# chmod 0750 /var/lib/postgresql/15/main
+root@dz3star:/etc/postgresql/15/main# systemctl start postgresql@15-main
+-- проверяем данные:
+
+root@dz3star:/etc/postgresql/15/main# su postgres
+postgres@dz3star:/etc/postgresql/15/main$ psql
+psql (15.2 (Debian 15.2-1.pgdg110+1))
+Type "help" for help.
+
+postgres=# select * from test
+postgres-# ;
+ c1
+----
+ 1
+(1 row)
+
+-- все на месте.
+
+EOF
+
