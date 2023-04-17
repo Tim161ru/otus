@@ -1,0 +1,138 @@
+1) создайте новый кластер PostgresSQL 14
+      -- root@dz4:~# { sudo apt update ; sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y -q ; sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' ; sudo apt install gnupg -y; wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add - ; sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt -y install postgresql-14; }
+2) зайдите в созданный кластер под пользователем postgres
+      -- root@dz4:/tmp# sudo -u postgres psql
+      -- psql (14.7 (Debian 14.7-1.pgdg110+1))
+      -- Type "help" for help.
+3) создайте новую базу данных testdb
+      -- postgres=# CREATE DATABASE testdb;
+      -- CREATE DATABASE
+4) зайдите в созданную базу данных под пользователем postgres
+      -- postgres=# \c testdb
+      -- You are now connected to database "testdb" as user "postgres".
+5) создайте новую схему testnm
+      -- testdb=# CREATE SCHEMA testnm;
+      -- CREATE SCHEMA
+
+6) создайте новую таблицу t1 с одной колонкой c1 типа integer
+      -- testdb=# CREATE TABLE t1(c1 integer);
+      -- CREATE TABLE
+
+7) вставьте строку со значением c1=1
+      -- testdb=# INSERT INTO t1 values(1);
+      -- INSERT 0 1
+
+8) создайте новую роль readonly
+      --testdb=# CREATE role readonly;
+      --CREATE ROLE
+
+9)  дайте новой роли право на подключение к базе данных testdb
+      -- testdb=# grant connect on DATABASE testdb TO readonly;
+      -- GRANT
+
+10) дайте новой роли право на использование схемы testnm
+      -- testdb=# grant usage on SCHEMA testnm to readonly;
+      -- GRANT
+
+11) дайте новой роли право на select для всех таблиц схемы testnm
+      -- testdb=# grant SELECT on all TABLEs in SCHEMA testnm TO readonly;
+      -- GRANT
+
+12) создайте пользователя testread с паролем test123
+      -- testdb=# CREATE USER testread with password 'test123';
+      -- CREATE ROLE
+
+13) дайте роль readonly пользователю testread
+      -- testdb=# grant readonly TO testread;
+      -- GRANT ROLE
+
+14) зайдите под пользователем testread в базу данных testdb
+      -- postgres=# \c testdb testread
+      -- You are now connected to database "testdb" as user "testread".
+
+15) сделайте select * from t1;
+      -- testdb=> select * from t1;
+      -- ERROR:  permission denied for table t1
+
+16)  получилось? (могло если вы делали сами не по шпаргалке и не упустили один существенный момент про который позже)
+      -- testdb=> \dt
+      --         List of relations
+      --  Schema | Name | Type  |  Owner
+      -- --------+------+-------+----------
+      --  public | t1   | table | postgres
+      -- (1 row)
+ -- нет не получилось 
+17-21) напишите что именно произошло в тексте домашнего задания,у вас есть идеи почему? ведь права то дали?
+      -- у readonly нет прав читать схему паблик.
+
+22) вернитесь в базу данных testdb под пользователем postgres
+      -- postgres=# \c testdb
+      -- You are now connected to database "testdb" as user "postgres".
+      
+23) удалите таблицу t1
+      -- testdb=# drop table t1;
+      -- DROP TABLE
+      
+24) создайте ее заново но уже с явным указанием имени схемы testnm
+      -- testdb=# CREATE TABLE testnm.t1(c1 integer);
+      -- CREATE TABLE
+
+25) вставьте строку со значением c1=1
+      -- testdb=# INSERT INTO testnm.t1 values(1);
+      -- INSERT 0 1
+
+26) зайдите под пользователем testread в базу данных testdb
+      -- You are now connected to database "testdb" as user "testread".
+      -- testdb=>
+
+27) сделайте select * from testnm.t1;
+      -- testdb=>  select * from testnm.t1;
+      -- ERROR:  permission denied for table t1
+
+28)  получилось? -- нет
+29) есть идеи почему? если нет - смотрите шпаргалку
+      -- gran был выдан на обьект который в последствии удалялся.
+30) как сделать так чтобы такое больше не повторялось? если нет идей - смотрите шпаргалку
+      -- не знал, спасибо 
+      -- ALTER default privileges in SCHEMA testnm grant SELECT on TABLEs to readonly; 
+31-33) сделайте select * from testnm.t1; получилось?,есть идеи почему? если нет - смотрите шпаргалку
+      -- получилось.
+      --   You are now connected to database "testdb" as user "testread".
+      -- testdb=>
+      -- testdb=> select * from testnm.t1;
+      --  c1
+      -- ----
+      --   1
+      -- (1 row)
+
+34) теперь попробуйте выполнить команду create table t2(c1 integer); insert into t2 values (2);
+      -- testdb=> create table t2(c1 integer);
+      -- CREATE TABLE
+      -- testdb=> insert into t2 values (2);
+      -- INSERT 0 1
+      -- testdb=> \dt
+      --         List of relations
+      --  Schema | Name | Type  |  Owner
+      -- --------+------+-------+----------
+      --  public | t2   | table | testread
+      -- (1 row)
+
+35) а как так? нам же никто прав на создание таблиц и insert в них под ролью readonly?
+      -- не знал о таком, смотрел шпору.
+36) есть идеи как убрать эти права? если нет - смотрите шпаргалку
+      -- testdb=# revoke CREATE on SCHEMA public FROM public;
+      -- REVOKE
+      -- testdb=# revoke all on DATABASE testdb FROM public;
+      -- REVOKE
+      -- не знал о таком, смотрел шпору.
+37) если вы справились сами то расскажите что сделали и почему, если смотрели шпаргалку - объясните что сделали и почему выполнив указанные в ней команды
+-- в пунктах описал в случаях если обращался к шпоргалке.
+
+38) теперь попробуйте выполнить команду create table t3(c1 integer); insert into t2 values (2);
+      -- testdb=> create table t3(c1 integer);
+      -- ERROR:  permission denied for schema public
+      -- LINE 1: create table t3(c1 integer);
+      
+39) расскажите что получилось и почему
+      -- пунктом ранее забирали права, командой revoke. 
+      
