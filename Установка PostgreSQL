@@ -1,0 +1,51 @@
+1) • создать ВМ с Ubuntu 20.04/22.04 или развернуть докер любым удобным способом
+      --смотреть первое задание
+2) • поставить на нем Docker Engine
+      -- curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh && rm get-docker.sh && sudo usermod -aG docker $USER
+3) • сделать каталог /var/lib/postgres
+      -- mkdir -p  /var/lib/postgres
+4) • развернуть контейнер с PostgreSQL 15 смонтировав в него /var/lib/postgres
+      -- docker run --name pg-server --network pg-net -e POSTGRES_PASSWORD=postgres -d -p 5432:5432 -v /var/lib/postgres:/var/lib/postgresql/data postgres:15
+5) • развернуть контейнер с клиентом postgres
+      -- docker run -it --rm --network pg-net --name pg-client postgres:15 psql -h pg-server -U postgres
+      -- root@test2:~# docker ps -a
+      -- CONTAINER ID   IMAGE         COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+      -- 76ec5f9ed55a   postgres:15   "docker-entrypoint.s…"   9 seconds ago   Up 8 seconds   5432/tcp                                    pg-client
+      -- 63e731368eab   postgres:15   "docker-entrypoint.s…"   3 minutes ago   Up 3 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   pg-server
+6) • подключится из контейнера с клиентом к контейнеру с сервером и сделать таблицу с парой строк
+      -- create table persons(id serial, first_name text, second_name text);
+      -- insert into persons(first_name, second_name) values('ivan', 'ivanov');
+      -- insert into persons(first_name, second_name) values('petr', 'petrov');
+      --postgres=# select * from persons;
+      -- id | first_name | second_name
+      -- ----+------------+-------------
+      -- 1 | ivan       | ivanov
+      -- 2 | petr       | petrov
+7) • подключится к контейнеру с сервером с ноутбука/компьютера извне инстансов GCP/ЯО/места установки докера
+      -- tkhandadashev@test1:~$ psql -h test2 -d postgres -U postgres -p 5432
+      -- Password for user postgres:
+      -- psql (14.7 (Debian 14.7-1.pgdg110+1), server 15.2 (Debian 15.2-1.pgdg110+1))
+      -- WARNING: psql major version 14, server major version 15.
+      --          Some psql features might not work.
+      -- Type "help" for help.
+8) • удалить контейнер с сервером
+      --- root@test2:~# docker stop pg-server && docker rm pg-server
+
+9) • создать его заново
+      -- повторяем пункт •4
+10) • подключится снова из контейнера с клиентом к контейнеру с сервером
+      -- повторяем пункт •5
+11) • проверить, что данные остались на месте
+      -- root@test2:~# docker run -it --rm --network pg-net --name pg-client postgres:15 psql -h pg-server -U postgres
+      -- Password for user postgres:
+      -- psql (15.2 (Debian 15.2-1.pgdg110+1))
+      -- Type "help" for help.
+      -- 
+      -- postgres=# select * from persons;
+      --  id | first_name | second_name
+      -- ----+------------+-------------
+      --   1 | ivan       | ivanov
+      --   2 | petr       | petrov
+      -- (2 rows)
+
+EOF
